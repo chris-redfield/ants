@@ -2,13 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ant Colony Simulation</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+        }
+
+        html {
+            overflow: auto;
         }
 
         body {
@@ -19,7 +23,7 @@
             align-items: center;
             font-family: 'Segoe UI', system-ui, sans-serif;
             color: #e0e0e0;
-            overflow: hidden;
+            overflow: auto;
         }
 
         header {
@@ -59,6 +63,7 @@
             border-radius: 8px;
             overflow: hidden;
             box-shadow: 0 0 40px rgba(244, 162, 97, 0.1);
+            flex-shrink: 0;  /* Don't shrink the canvas wrapper */
         }
 
         canvas {
@@ -338,31 +343,69 @@
         let lastFpsTime = performance.now();
         let currentFps = 0;
 
-        function resize() {
+        // Track device pixel ratio to detect browser zoom
+        let lastDevicePixelRatio = window.devicePixelRatio;
+
+        function resize(preserveState = false) {
             const container = document.getElementById('game-container');
             // Use most of the available space - no artificial cap
             const maxWidth = container.clientWidth - 40;
             const maxHeight = container.clientHeight - 40;
 
-            width = Math.floor(maxWidth / CELL_SIZE) * CELL_SIZE;
-            height = Math.floor(maxHeight / CELL_SIZE) * CELL_SIZE;
-            
-            gridWidth = Math.floor(width / CELL_SIZE);
-            gridHeight = Math.floor(height / CELL_SIZE);
+            const newWidth = Math.floor(maxWidth / CELL_SIZE) * CELL_SIZE;
+            const newHeight = Math.floor(maxHeight / CELL_SIZE) * CELL_SIZE;
+
+            const newGridWidth = Math.floor(newWidth / CELL_SIZE);
+            const newGridHeight = Math.floor(newHeight / CELL_SIZE);
+
+            // Check if grid size actually changed
+            const gridSizeChanged = newGridWidth !== gridWidth || newGridHeight !== gridHeight;
+
+            // Store old values for state preservation
+            const oldGridWidth = gridWidth;
+            const oldGridHeight = gridHeight;
+            const oldHomePheromones = homePheromones;
+            const oldFoodPheromones = foodPheromones;
+
+            width = newWidth;
+            height = newHeight;
+            gridWidth = newGridWidth;
+            gridHeight = newGridHeight;
 
             [bgCanvas, pheromoneCanvas, antCanvas].forEach(canvas => {
                 canvas.width = width;
                 canvas.height = height;
             });
 
-            // Initialize pheromone grids
-            homePheromones = new Float32Array(gridWidth * gridHeight);
-            foodPheromones = new Float32Array(gridWidth * gridHeight);
+            // Set explicit size on canvas wrapper to prevent shrinking on zoom
+            const wrapper = document.getElementById('canvas-wrapper');
+            wrapper.style.width = width + 'px';
+            wrapper.style.height = height + 'px';
 
-            // Reinitialize offscreen canvas for new grid size
-            initPheromoneOffscreen();
+            if (gridSizeChanged) {
+                // Create new pheromone grids
+                homePheromones = new Float32Array(gridWidth * gridHeight);
+                foodPheromones = new Float32Array(gridWidth * gridHeight);
 
-            // Set colony position
+                // Copy old pheromone data if preserving state
+                if (preserveState && oldHomePheromones) {
+                    const minWidth = Math.min(oldGridWidth, gridWidth);
+                    const minHeight = Math.min(oldGridHeight, gridHeight);
+                    for (let y = 0; y < minHeight; y++) {
+                        for (let x = 0; x < minWidth; x++) {
+                            const oldIdx = y * oldGridWidth + x;
+                            const newIdx = y * gridWidth + x;
+                            homePheromones[newIdx] = oldHomePheromones[oldIdx];
+                            foodPheromones[newIdx] = oldFoodPheromones[oldIdx];
+                        }
+                    }
+                }
+
+                // Reinitialize offscreen canvas for new grid size
+                initPheromoneOffscreen();
+            }
+
+            // Set colony position (keep centered)
             colony.x = width / 2;
             colony.y = height / 2;
 
@@ -1065,22 +1108,30 @@
         }
 
         // Event listeners
+        // Helper to convert screen coordinates to canvas coordinates (handles browser zoom)
+        function screenToCanvas(clientX, clientY) {
+            const rect = antCanvas.getBoundingClientRect();
+            // Scale by ratio of internal canvas size to displayed size
+            const scaleX = antCanvas.width / rect.width;
+            const scaleY = antCanvas.height / rect.height;
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
         // Click to add food
         antCanvas.addEventListener('click', (e) => {
-            const rect = antCanvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            createFood(x, y);
+            const pos = screenToCanvas(e.clientX, e.clientY);
+            createFood(pos.x, pos.y);
         });
 
         // Touch support for mobile
         antCanvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            const rect = antCanvas.getBoundingClientRect();
             const touch = e.touches[0];
-            const x = touch.clientX - rect.left;
-            const y = touch.clientY - rect.top;
-            createFood(x, y);
+            const pos = screenToCanvas(touch.clientX, touch.clientY);
+            createFood(pos.x, pos.y);
         });
 
         document.getElementById('ant-slider').addEventListener('input', (e) => {
@@ -1113,12 +1164,38 @@
         });
 
         window.addEventListener('resize', () => {
-            resize();
-            drawBackground();
+            // Detect if this is a browser zoom change (devicePixelRatio changed)
+            const currentRatio = window.devicePixelRatio;
+            if (currentRatio !== lastDevicePixelRatio) {
+                // Browser zoom changed - don't resize canvas, just update ratio
+                lastDevicePixelRatio = currentRatio;
+                return;  // Skip canvas resize, let browser handle zoom scaling
+            }
+            // Actual window resize - preserve pheromone state
+            resize(true);
         });
 
         // Start
         init();
+
+        // After init, lock in canvas dimensions to enable zoom navigation
+        // The wrapper now has fixed pixel size that won't shrink on zoom
+        function enableZoomNavigation() {
+            const wrapper = document.getElementById('canvas-wrapper');
+            const container = document.getElementById('game-container');
+
+            // Lock wrapper to current canvas size
+            wrapper.style.width = width + 'px';
+            wrapper.style.height = height + 'px';
+            wrapper.style.flexShrink = '0';
+
+            // Allow container to overflow
+            container.style.overflow = 'visible';
+            container.style.minWidth = width + 'px';
+            container.style.minHeight = height + 'px';
+        }
+        enableZoomNavigation();
+
         gameLoop();
     </script>
 </body>
