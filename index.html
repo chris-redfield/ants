@@ -20,7 +20,7 @@
             min-height: 100vh;
             display: flex;
             flex-direction: column;
-            align-items: center;
+            align-items: stretch; /* Changed from center to allow proper scrolling */
             font-family: 'Segoe UI', system-ui, sans-serif;
             color: #e0e0e0;
             overflow: auto;
@@ -32,6 +32,7 @@
             background: linear-gradient(180deg, #1a1a2e 0%, transparent 100%);
             width: 100%;
             z-index: 10;
+            align-self: stretch;
         }
 
         h1 {
@@ -53,9 +54,10 @@
             position: relative;
             flex: 1;
             display: flex;
-            align-items: center;
-            justify-content: center;
+            align-items: flex-start;
+            justify-content: flex-start;
             width: 100%;
+            padding: 20px;
         }
 
         #canvas-wrapper {
@@ -63,7 +65,8 @@
             border-radius: 8px;
             overflow: hidden;
             box-shadow: 0 0 40px rgba(244, 162, 97, 0.1);
-            flex-shrink: 0;  /* Don't shrink the canvas wrapper */
+            flex-shrink: 0;
+            margin: auto; /* Center when smaller than viewport, align to start when larger */
         }
 
         canvas {
@@ -207,6 +210,7 @@
             min-height: 100vh;
             padding: 20px;
             text-align: center;
+            width: 100%;
         }
 
         .menu-title {
