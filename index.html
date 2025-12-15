@@ -198,6 +198,121 @@
             z-index: 50;
         }
 
+        /* Menu styles */
+        #menu-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .menu-title {
+            font-size: 3rem;
+            font-weight: 300;
+            letter-spacing: 5px;
+            color: #f4a261;
+            margin-bottom: 10px;
+        }
+
+        .menu-subtitle {
+            font-size: 1rem;
+            color: #888;
+            margin-bottom: 40px;
+            letter-spacing: 2px;
+        }
+
+        .menu-options {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .mode-btn {
+            padding: 15px 30px;
+            font-size: 1rem;
+            border: 2px solid rgba(244, 162, 97, 0.3);
+            border-radius: 8px;
+            background: rgba(244, 162, 97, 0.1);
+            color: #ccc;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .mode-btn:hover {
+            background: rgba(244, 162, 97, 0.2);
+            border-color: rgba(244, 162, 97, 0.5);
+        }
+
+        .mode-btn.active {
+            background: rgba(244, 162, 97, 0.3);
+            border-color: #f4a261;
+            color: #f4a261;
+        }
+
+        #colony-selector {
+            margin-bottom: 30px;
+        }
+
+        #colony-selector label {
+            display: block;
+            color: #888;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        .colony-count-btns {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .count-btn {
+            width: 50px;
+            height: 50px;
+            font-size: 1.2rem;
+            border: 2px solid rgba(244, 162, 97, 0.3);
+            border-radius: 50%;
+            background: rgba(244, 162, 97, 0.1);
+            color: #ccc;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .count-btn:hover {
+            background: rgba(244, 162, 97, 0.2);
+        }
+
+        .count-btn.active {
+            background: rgba(244, 162, 97, 0.3);
+            border-color: #f4a261;
+            color: #f4a261;
+        }
+
+        .start-btn {
+            padding: 18px 50px;
+            font-size: 1.2rem;
+            border: 2px solid #f4a261;
+            border-radius: 8px;
+            background: linear-gradient(135deg, rgba(244, 162, 97, 0.3), rgba(244, 162, 97, 0.1));
+            color: #f4a261;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+            letter-spacing: 1px;
+        }
+
+        .start-btn:hover {
+            background: linear-gradient(135deg, rgba(244, 162, 97, 0.5), rgba(244, 162, 97, 0.2));
+            transform: scale(1.02);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
         @media (max-width: 600px) {
             header {
                 padding: 10px;
@@ -234,12 +349,34 @@
     </style>
 </head>
 <body>
-    <header>
+    <!-- Menu Screen -->
+    <div id="menu-screen">
+        <h1 class="menu-title">🐜 Ant Colony</h1>
+        <p class="menu-subtitle">Emergent Intelligence from Simple Rules</p>
+
+        <div class="menu-options">
+            <button id="single-mode-btn" class="mode-btn active">Single Colony</button>
+            <button id="multi-mode-btn" class="mode-btn">Multiple Colonies</button>
+        </div>
+
+        <div id="colony-selector" class="hidden">
+            <label>Number of Colonies:</label>
+            <div class="colony-count-btns">
+                <button class="count-btn active" data-count="2">2</button>
+                <button class="count-btn" data-count="3">3</button>
+                <button class="count-btn" data-count="4">4</button>
+            </div>
+        </div>
+
+        <button id="start-btn" class="start-btn">Start Simulation</button>
+    </div>
+
+    <header id="game-header" class="hidden">
         <h1>🐜 Ant Colony</h1>
         <div class="subtitle">Emergent Intelligence from Simple Rules</div>
     </header>
 
-    <div id="game-container">
+    <div id="game-container" class="hidden">
         <div id="canvas-wrapper">
             <canvas id="bg-canvas"></canvas>
             <canvas id="pheromone-canvas"></canvas>
@@ -247,7 +384,7 @@
         </div>
     </div>
 
-    <div class="stats">
+    <div id="stats" class="stats hidden">
         <div>FPS: <span id="fps-counter">0</span></div>
         <div>Ants: <span id="ant-count">0</span></div>
         <div>Food Collected: <span id="food-collected">0</span></div>
@@ -255,7 +392,7 @@
         <div>Colony Size: <span id="colony-size">1</span></div>
     </div>
 
-    <div class="legend">
+    <div id="legend" class="legend hidden">
         <div class="legend-item">
             <div class="legend-color" style="background: linear-gradient(135deg, #b08860, #6b4423);"></div>
             <span>Ant Hill</span>
@@ -274,9 +411,9 @@
         </div>
     </div>
 
-    <div class="instructions">Click to add food • Watch trails emerge</div>
+    <div id="instructions" class="instructions hidden">Click to add food • Watch trails emerge</div>
 
-    <div class="controls">
+    <div id="controls" class="controls hidden">
         <div class="control-group">
             <label>Ants</label>
             <input type="range" id="ant-slider" min="20" max="500" value="150">
@@ -317,18 +454,28 @@
         const CELL_SIZE = 4; // Pheromone grid cell size
         let gridWidth, gridHeight;
 
+        // Game mode
+        let gameMode = 'single'; // 'single' or 'multi'
+        let colonyCount = 2; // 2-4 colonies in multi mode
+
+        // Colony colors
+        const COLONY_COLORS = [
+            { main: '#f4a261', light: '#f4b982', dark: '#c4824a', trail: [255, 180, 100] },  // Orange
+            { main: '#4da6ff', light: '#7dbfff', dark: '#2d86df', trail: [77, 166, 255] },   // Blue
+            { main: '#4ade80', light: '#7aeea0', dark: '#2abe60', trail: [74, 222, 128] },  // Green
+            { main: '#a78bfa', light: '#c7abff', dark: '#876bda', trail: [167, 139, 250] }   // Purple
+        ];
+
         // Simulation state
         let ants = [];
         let foods = [];
-        let colony = { x: 0, y: 0, radius: 25, foodStored: 0 };
-        let homePheromones = [];
-        let foodPheromones = [];
+        let colonies = []; // Array of colony objects
+        let colony = null; // Reference to colonies[0] for single mode compatibility
         let showTrails = true;
         let simulationSpeed = 2;
         let targetAntCount = 150;
         let targetFoodCount = 5;
         let antStyle = 'classic'; // 'classic' or 'detailed'
-        let colonyGranules = []; // Store granule positions so they don't move
 
         // Constants
         const ANT_SPEED = 2;
@@ -360,12 +507,8 @@
 
             // Check if grid size actually changed
             const gridSizeChanged = newGridWidth !== gridWidth || newGridHeight !== gridHeight;
-
-            // Store old values for state preservation
             const oldGridWidth = gridWidth;
             const oldGridHeight = gridHeight;
-            const oldHomePheromones = homePheromones;
-            const oldFoodPheromones = foodPheromones;
 
             width = newWidth;
             height = newHeight;
@@ -382,21 +525,25 @@
             wrapper.style.width = width + 'px';
             wrapper.style.height = height + 'px';
 
-            if (gridSizeChanged) {
-                // Create new pheromone grids
-                homePheromones = new Float32Array(gridWidth * gridHeight);
-                foodPheromones = new Float32Array(gridWidth * gridHeight);
+            if (gridSizeChanged && colonies.length > 0) {
+                // Resize pheromone grids for each colony
+                for (const col of colonies) {
+                    const oldHome = col.homePheromones;
+                    const oldFood = col.foodPheromones;
+                    col.homePheromones = new Float32Array(gridWidth * gridHeight);
+                    col.foodPheromones = new Float32Array(gridWidth * gridHeight);
 
-                // Copy old pheromone data if preserving state
-                if (preserveState && oldHomePheromones) {
-                    const minWidth = Math.min(oldGridWidth, gridWidth);
-                    const minHeight = Math.min(oldGridHeight, gridHeight);
-                    for (let y = 0; y < minHeight; y++) {
-                        for (let x = 0; x < minWidth; x++) {
-                            const oldIdx = y * oldGridWidth + x;
-                            const newIdx = y * gridWidth + x;
-                            homePheromones[newIdx] = oldHomePheromones[oldIdx];
-                            foodPheromones[newIdx] = oldFoodPheromones[oldIdx];
+                    // Copy old pheromone data if preserving state
+                    if (preserveState && oldHome) {
+                        const minWidth = Math.min(oldGridWidth, gridWidth);
+                        const minHeight = Math.min(oldGridHeight, gridHeight);
+                        for (let y = 0; y < minHeight; y++) {
+                            for (let x = 0; x < minWidth; x++) {
+                                const oldIdx = y * oldGridWidth + x;
+                                const newIdx = y * gridWidth + x;
+                                col.homePheromones[newIdx] = oldHome[oldIdx];
+                                col.foodPheromones[newIdx] = oldFood[oldIdx];
+                            }
                         }
                     }
                 }
@@ -404,10 +551,6 @@
                 // Reinitialize offscreen canvas for new grid size
                 initPheromoneOffscreen();
             }
-
-            // Set colony position (keep centered)
-            colony.x = width / 2;
-            colony.y = height / 2;
 
             drawBackground();
         }
@@ -451,9 +594,10 @@
         }
 
         class Ant {
-            constructor(x, y) {
+            constructor(x, y, colonyId = 0) {
                 this.x = x;
                 this.y = y;
+                this.colonyId = colonyId;
                 this.angle = Math.random() * Math.PI * 2;
                 this.hasFood = false;
                 this.foodColor = null; // Color of food being carried
@@ -463,7 +607,13 @@
                 this.maxPheromoneStrength = PHEROMONE_DEPOSIT;
             }
 
+            getColony() {
+                return colonies[this.colonyId];
+            }
+
             update() {
+                const myColony = this.getColony();
+
                 // Deposit pheromones
                 this.pheromoneTimer++;
                 if (this.pheromoneTimer > 2) {
@@ -475,27 +625,27 @@
                         const strength = Math.max(10, this.maxPheromoneStrength - this.distanceTraveled * 0.3);
                         if (this.hasFood) {
                             // Returning: leave food trail so others can find the food
-                            foodPheromones[idx] = Math.min(foodPheromones[idx] + strength, 255);
+                            myColony.foodPheromones[idx] = Math.min(myColony.foodPheromones[idx] + strength, 255);
                         } else {
                             // Searching: leave home trail so we can find our way back
-                            const distToColony = Math.sqrt((this.x - colony.x) ** 2 + (this.y - colony.y) ** 2);
+                            const distToColony = Math.sqrt((this.x - myColony.x) ** 2 + (this.y - myColony.y) ** 2);
                             const homeStrength = Math.max(20, PHEROMONE_DEPOSIT * 1.5 - distToColony * 0.2);
-                            homePheromones[idx] = Math.min(homePheromones[idx] + homeStrength, 255);
+                            myColony.homePheromones[idx] = Math.min(myColony.homePheromones[idx] + homeStrength, 255);
                         }
                     }
                 }
 
                 if (this.hasFood) {
                     // ===== RETURNING STATE: Go directly to colony =====
-                    const dx = colony.x - this.x;
-                    const dy = colony.y - this.y;
+                    const dx = myColony.x - this.x;
+                    const dy = myColony.y - this.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-                    
+
                     // Reached colony - drop food
-                    if (dist < colony.radius + 5) {
+                    if (dist < myColony.radius + 5) {
                         this.hasFood = false;
                         this.foodColor = null; // Clear the food color
-                        colony.foodStored++;
+                        myColony.foodStored++;
                         // Turn around to go search again
                         this.angle += Math.PI + (Math.random() - 0.5) * 1.0;
                         this.distanceTraveled = 0;
@@ -506,16 +656,16 @@
                         let angleDiff = targetAngle - this.angle;
                         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
                         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-                        
+
                         // Strong homing - turn towards colony
                         this.angle += angleDiff * 0.2;
-                        
+
                         // Add tiny bit of wander for natural look
                         this.angle += (Math.random() - 0.5) * 0.1;
                     }
                 } else {
                     // ===== SEARCHING STATE: Look for food using pheromones =====
-                    
+
                     // Check for food first
                     for (let food of foods) {
                         const dx = food.x - this.x;
@@ -527,21 +677,21 @@
                             this.foodColor = food.color; // Store the food's color
                             food.amount--;
                             // Point towards colony
-                            this.angle = Math.atan2(colony.y - this.y, colony.x - this.x);
+                            this.angle = Math.atan2(myColony.y - this.y, myColony.x - this.x);
                             this.distanceTraveled = 0;
                             this.maxPheromoneStrength = PHEROMONE_DEPOSIT;
                             break;
                         }
                     }
-                    
+
                     // If didn't find food, follow food pheromones or wander
                     if (!this.hasFood) {
                         const senseAngle = Math.PI / 4;
                         const senseDistance = 12;
 
-                        const leftStrength = this.sensePheromone(foodPheromones, this.angle - senseAngle, senseDistance);
-                        const centerStrength = this.sensePheromone(foodPheromones, this.angle, senseDistance);
-                        const rightStrength = this.sensePheromone(foodPheromones, this.angle + senseAngle, senseDistance);
+                        const leftStrength = this.sensePheromone(myColony.foodPheromones, this.angle - senseAngle, senseDistance);
+                        const centerStrength = this.sensePheromone(myColony.foodPheromones, this.angle, senseDistance);
+                        const rightStrength = this.sensePheromone(myColony.foodPheromones, this.angle + senseAngle, senseDistance);
 
                         const maxStrength = Math.max(leftStrength, centerStrength, rightStrength);
 
@@ -612,16 +762,20 @@
                 ctx.save();
                 ctx.translate(this.x, this.y);
                 ctx.rotate(this.angle);
-                
+
+                // Get colony color (use dark variant for ant body)
+                const colonyColor = COLONY_COLORS[this.colonyId] || COLONY_COLORS[0];
+                const antColor = gameMode === 'multi' ? colonyColor.dark : '#5c4033';
+
                 if (antStyle === 'classic') {
-                    // Classic simple ant - brown colored
-                    ctx.fillStyle = '#5c4033';
-                    
+                    // Classic simple ant
+                    ctx.fillStyle = antColor;
+
                     // Body (single oval)
                     ctx.beginPath();
                     ctx.ellipse(0, 0, 5, 3, 0, 0, Math.PI * 2);
                     ctx.fill();
-                    
+
                     // Head
                     ctx.beginPath();
                     ctx.arc(5, 0, 2, 0, Math.PI * 2);
@@ -635,51 +789,51 @@
                         ctx.fill();
                     }
                 } else {
-                    // Detailed termite-style - darker brown
-                    const antColor = '#3d2817';
-                    
+                    // Detailed termite-style
+                    const detailedColor = gameMode === 'multi' ? colonyColor.dark : '#3d2817';
+
                     // Legs
-                    ctx.strokeStyle = antColor;
+                    ctx.strokeStyle = detailedColor;
                     ctx.lineWidth = 0.8;
                     const legWiggle = Math.sin(this.distanceTraveled * 0.5) * 0.2;
-                    
+
                     // 3 pairs of legs
                     for (let i = -1; i <= 1; i++) {
                         const legX = i * 2;
                         const wiggle = (i === 0) ? 0 : legWiggle * i;
-                        
+
                         // Left leg
                         ctx.beginPath();
                         ctx.moveTo(legX, 0);
                         ctx.lineTo(legX - 3, -3 + wiggle);
                         ctx.stroke();
-                        
+
                         // Right leg
                         ctx.beginPath();
                         ctx.moveTo(legX, 0);
                         ctx.lineTo(legX - 3, 3 - wiggle);
                         ctx.stroke();
                     }
-                    
-                    ctx.fillStyle = antColor;
-                    
+
+                    ctx.fillStyle = detailedColor;
+
                     // Abdomen (back)
                     ctx.beginPath();
                     ctx.ellipse(-3, 0, 3, 2.2, 0, 0, Math.PI * 2);
                     ctx.fill();
-                    
+
                     // Thorax (middle)
                     ctx.beginPath();
                     ctx.ellipse(1, 0, 2, 1.5, 0, 0, Math.PI * 2);
                     ctx.fill();
-                    
+
                     // Head
                     ctx.beginPath();
                     ctx.ellipse(4, 0, 1.8, 1.5, 0, 0, Math.PI * 2);
                     ctx.fill();
-                    
+
                     // Antennae
-                    ctx.strokeStyle = antColor;
+                    ctx.strokeStyle = detailedColor;
                     ctx.lineWidth = 0.5;
                     ctx.beginPath();
                     ctx.moveTo(5, -0.5);
@@ -749,60 +903,102 @@
             const margin = 80;
             let x, y;
             let attempts = 0;
+            let tooClose;
             do {
                 x = margin + Math.random() * (width - margin * 2);
                 y = margin + Math.random() * (height - margin * 2);
                 attempts++;
-            } while (Math.sqrt((x - colony.x) ** 2 + (y - colony.y) ** 2) < 100 && attempts < 20);
-            
+                // Check distance from all colonies
+                tooClose = colonies.some(c => Math.sqrt((x - c.x) ** 2 + (y - c.y) ** 2) < 100);
+            } while (tooClose && attempts < 20);
+
             createFood(x, y);
+        }
+
+        function createColony(id, x, y) {
+            const colonyObj = {
+                id: id,
+                x: x,
+                y: y,
+                radius: 25,
+                foodStored: 0,
+                color: COLONY_COLORS[id],
+                homePheromones: new Float32Array(gridWidth * gridHeight),
+                foodPheromones: new Float32Array(gridWidth * gridHeight),
+                granules: []
+            };
+
+            // Generate dirt granules for this colony
+            const hillRadius = colonyObj.radius * 1.8;
+            for (let i = 0; i < 30; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * hillRadius * 0.8;
+                colonyObj.granules.push({
+                    x: Math.cos(angle) * dist,
+                    y: Math.sin(angle) * dist * 0.7 - 5,
+                    size: 1 + Math.random() * 2,
+                    brightness: Math.random()
+                });
+            }
+
+            return colonyObj;
         }
 
         function init() {
             resize();
-            
-            // Create initial ants
+
+            // Create colonies
+            colonies = [];
+            const numColonies = gameMode === 'multi' ? colonyCount : 1;
+
+            if (gameMode === 'single') {
+                // Single colony in center
+                colonies.push(createColony(0, width / 2, height / 2));
+            } else {
+                // Multiple colonies spread out
+                const positions = [
+                    { x: width * 0.25, y: height * 0.25 },  // Top-left
+                    { x: width * 0.75, y: height * 0.75 },  // Bottom-right
+                    { x: width * 0.75, y: height * 0.25 },  // Top-right
+                    { x: width * 0.25, y: height * 0.75 }   // Bottom-left
+                ];
+                for (let i = 0; i < numColonies; i++) {
+                    colonies.push(createColony(i, positions[i].x, positions[i].y));
+                }
+            }
+
+            // Reference to first colony for backward compatibility
+            colony = colonies[0];
+
+            // Create initial ants for each colony
             ants = [];
-            for (let i = 0; i < targetAntCount; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const dist = Math.random() * colony.radius;
-                ants.push(new Ant(
-                    colony.x + Math.cos(angle) * dist,
-                    colony.y + Math.sin(angle) * dist
-                ));
+            const antsPerColony = Math.floor(targetAntCount / numColonies);
+            for (let c = 0; c < numColonies; c++) {
+                const col = colonies[c];
+                for (let i = 0; i < antsPerColony; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = Math.random() * col.radius;
+                    ants.push(new Ant(
+                        col.x + Math.cos(angle) * dist,
+                        col.y + Math.sin(angle) * dist,
+                        c
+                    ));
+                }
             }
 
             // Create initial food sources
             foods = [];
-            for (let i = 0; i < targetFoodCount; i++) {
+            const foodCount = gameMode === 'multi' ? targetFoodCount * 2 : targetFoodCount;
+            for (let i = 0; i < foodCount; i++) {
                 spawnRandomFood();
-            }
-
-            colony.foodStored = 0;
-            
-            // Generate colony dirt granules once
-            colonyGranules = [];
-            const hillRadius = colony.radius * 1.8;
-            for (let i = 0; i < 30; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const dist = Math.random() * hillRadius * 0.8;
-                colonyGranules.push({
-                    x: Math.cos(angle) * dist,
-                    y: Math.sin(angle) * dist * 0.7 - 5,
-                    size: 1 + Math.random() * 2,
-                    color: `rgba(${100 + Math.floor(Math.random() * 60)}, ${70 + Math.floor(Math.random() * 40)}, ${40 + Math.floor(Math.random() * 30)}, 0.5)`
-                });
             }
         }
 
-        function updatePheromones() {
-            const newHome = new Float32Array(gridWidth * gridHeight);
-            const newFood = new Float32Array(gridWidth * gridHeight);
-
-            const HOME_DECAY = 0.998;
-            const FOOD_DECAY = 0.994;
-            const DIFFUSE_SELF = 1 - PHEROMONE_DIFFUSE;  // 0.9
-            const DIFFUSE_NEIGHBOR = PHEROMONE_DIFFUSE / 8;  // 0.0125
+        // Helper function to update a single pheromone grid
+        function updatePheromoneGrid(oldGrid, decay) {
+            const newGrid = new Float32Array(gridWidth * gridHeight);
+            const DIFFUSE_SELF = 1 - PHEROMONE_DIFFUSE;
+            const DIFFUSE_NEIGHBOR = PHEROMONE_DIFFUSE / 8;
 
             for (let y = 0; y < gridHeight; y++) {
                 const rowOffset = y * gridWidth;
@@ -811,60 +1007,39 @@
 
                 for (let x = 0; x < gridWidth; x++) {
                     const idx = rowOffset + x;
+                    let sum = oldGrid[idx] * DIFFUSE_SELF;
 
-                    // Self contribution
-                    let homeSum = homePheromones[idx] * DIFFUSE_SELF;
-                    let foodSum = foodPheromones[idx] * DIFFUSE_SELF;
-
-                    // Neighbor contributions (unrolled for performance)
                     const hasLeft = x > 0;
                     const hasRight = x < gridWidth - 1;
 
-                    // Row above
                     if (rowAbove >= 0) {
-                        if (hasLeft) {
-                            homeSum += homePheromones[rowAbove + x - 1] * DIFFUSE_NEIGHBOR;
-                            foodSum += foodPheromones[rowAbove + x - 1] * DIFFUSE_NEIGHBOR;
-                        }
-                        homeSum += homePheromones[rowAbove + x] * DIFFUSE_NEIGHBOR;
-                        foodSum += foodPheromones[rowAbove + x] * DIFFUSE_NEIGHBOR;
-                        if (hasRight) {
-                            homeSum += homePheromones[rowAbove + x + 1] * DIFFUSE_NEIGHBOR;
-                            foodSum += foodPheromones[rowAbove + x + 1] * DIFFUSE_NEIGHBOR;
-                        }
+                        if (hasLeft) sum += oldGrid[rowAbove + x - 1] * DIFFUSE_NEIGHBOR;
+                        sum += oldGrid[rowAbove + x] * DIFFUSE_NEIGHBOR;
+                        if (hasRight) sum += oldGrid[rowAbove + x + 1] * DIFFUSE_NEIGHBOR;
                     }
-
-                    // Same row (left and right)
-                    if (hasLeft) {
-                        homeSum += homePheromones[rowOffset + x - 1] * DIFFUSE_NEIGHBOR;
-                        foodSum += foodPheromones[rowOffset + x - 1] * DIFFUSE_NEIGHBOR;
-                    }
-                    if (hasRight) {
-                        homeSum += homePheromones[rowOffset + x + 1] * DIFFUSE_NEIGHBOR;
-                        foodSum += foodPheromones[rowOffset + x + 1] * DIFFUSE_NEIGHBOR;
-                    }
-
-                    // Row below
+                    if (hasLeft) sum += oldGrid[rowOffset + x - 1] * DIFFUSE_NEIGHBOR;
+                    if (hasRight) sum += oldGrid[rowOffset + x + 1] * DIFFUSE_NEIGHBOR;
                     if (rowBelow >= 0) {
-                        if (hasLeft) {
-                            homeSum += homePheromones[rowBelow + x - 1] * DIFFUSE_NEIGHBOR;
-                            foodSum += foodPheromones[rowBelow + x - 1] * DIFFUSE_NEIGHBOR;
-                        }
-                        homeSum += homePheromones[rowBelow + x] * DIFFUSE_NEIGHBOR;
-                        foodSum += foodPheromones[rowBelow + x] * DIFFUSE_NEIGHBOR;
-                        if (hasRight) {
-                            homeSum += homePheromones[rowBelow + x + 1] * DIFFUSE_NEIGHBOR;
-                            foodSum += foodPheromones[rowBelow + x + 1] * DIFFUSE_NEIGHBOR;
-                        }
+                        if (hasLeft) sum += oldGrid[rowBelow + x - 1] * DIFFUSE_NEIGHBOR;
+                        sum += oldGrid[rowBelow + x] * DIFFUSE_NEIGHBOR;
+                        if (hasRight) sum += oldGrid[rowBelow + x + 1] * DIFFUSE_NEIGHBOR;
                     }
 
-                    newHome[idx] = homeSum * HOME_DECAY;
-                    newFood[idx] = foodSum * FOOD_DECAY;
+                    newGrid[idx] = sum * decay;
                 }
             }
+            return newGrid;
+        }
 
-            homePheromones = newHome;
-            foodPheromones = newFood;
+        function updatePheromones() {
+            const HOME_DECAY = 0.998;
+            const FOOD_DECAY = 0.994;
+
+            // Update pheromones for each colony
+            for (const col of colonies) {
+                col.homePheromones = updatePheromoneGrid(col.homePheromones, HOME_DECAY);
+                col.foodPheromones = updatePheromoneGrid(col.foodPheromones, FOOD_DECAY);
+            }
         }
 
         // Create offscreen canvas for pheromone rendering (at grid resolution)
@@ -897,18 +1072,34 @@
                 for (let gx = 0; gx < gridWidth; gx++) {
                     const idx = gy * gridWidth + gx;
                     const pixelIdx = idx * 4;
-                    const home = homePheromones[idx];
-                    const food = foodPheromones[idx];
 
-                    if (home > 1 || food > 1) {
-                        const homeAlpha = Math.min(home / 100, 1) * 0.6;
-                        const foodAlpha = Math.min(food / 100, 1) * 0.6;
+                    // Accumulate colors from all colonies
+                    let r = 0, g = 0, b = 0, totalAlpha = 0;
 
-                        // Blend colors based on pheromone strengths
-                        data[pixelIdx] = Math.floor(77 * homeAlpha + 255 * foodAlpha);     // R
-                        data[pixelIdx + 1] = Math.floor(166 * homeAlpha + 180 * foodAlpha); // G
-                        data[pixelIdx + 2] = Math.floor(255 * homeAlpha + 50 * foodAlpha);  // B
-                        data[pixelIdx + 3] = Math.floor(Math.min((homeAlpha + foodAlpha) * 0.7, 0.8) * 255); // A
+                    for (const col of colonies) {
+                        const home = col.homePheromones[idx];
+                        const food = col.foodPheromones[idx];
+
+                        if (home > 1 || food > 1) {
+                            const trailColor = col.color.trail;
+                            const homeAlpha = Math.min(home / 100, 1) * 0.5;
+                            const foodAlpha = Math.min(food / 100, 1) * 0.6;
+                            const alpha = homeAlpha + foodAlpha;
+
+                            // Blend this colony's trail color
+                            r += trailColor[0] * alpha;
+                            g += trailColor[1] * alpha;
+                            b += trailColor[2] * alpha;
+                            totalAlpha += alpha;
+                        }
+                    }
+
+                    if (totalAlpha > 0.01) {
+                        // Normalize and clamp colors
+                        data[pixelIdx] = Math.min(255, Math.floor(r / Math.max(totalAlpha, 1)));
+                        data[pixelIdx + 1] = Math.min(255, Math.floor(g / Math.max(totalAlpha, 1)));
+                        data[pixelIdx + 2] = Math.min(255, Math.floor(b / Math.max(totalAlpha, 1)));
+                        data[pixelIdx + 3] = Math.floor(Math.min(totalAlpha * 0.6, 0.85) * 255);
                     } else {
                         data[pixelIdx] = 0;
                         data[pixelIdx + 1] = 0;
@@ -926,63 +1117,87 @@
             pheromoneCtx.drawImage(pheromoneOffscreen, 0, 0, width, height);
         }
 
-        function drawAnts() {
-            antCtx.clearRect(0, 0, width, height);
+        function drawColonyHill(col) {
+            const hillRadius = col.radius * 1.8;
+            const colColor = col.color;
 
-            // Draw colony as ant hill mound with entrance hole
-            const hillRadius = colony.radius * 1.8;
-            
             // Outer dirt mound - multiple layers for 3D effect
             for (let i = 5; i >= 0; i--) {
                 const layerRadius = hillRadius * (0.5 + i * 0.1);
                 const layerOffset = i * 2;
-                
+
                 const gradient = antCtx.createRadialGradient(
-                    colony.x, colony.y - layerOffset, 0,
-                    colony.x, colony.y - layerOffset, layerRadius
+                    col.x, col.y - layerOffset, 0,
+                    col.x, col.y - layerOffset, layerRadius
                 );
-                
-                // Sandy/dirt colors
+
+                // Use colony color tint for multi-colony mode
                 const brightness = 0.6 + i * 0.05;
-                gradient.addColorStop(0, `rgba(${Math.floor(180 * brightness)}, ${Math.floor(140 * brightness)}, ${Math.floor(100 * brightness)}, ${0.9 - i * 0.1})`);
-                gradient.addColorStop(0.6, `rgba(${Math.floor(140 * brightness)}, ${Math.floor(100 * brightness)}, ${Math.floor(70 * brightness)}, ${0.7 - i * 0.1})`);
+                if (gameMode === 'multi') {
+                    // Parse colony color and apply
+                    const tc = col.color.trail;
+                    gradient.addColorStop(0, `rgba(${Math.floor(tc[0] * brightness)}, ${Math.floor(tc[1] * brightness * 0.8)}, ${Math.floor(tc[2] * brightness * 0.6)}, ${0.9 - i * 0.1})`);
+                    gradient.addColorStop(0.6, `rgba(${Math.floor(tc[0] * brightness * 0.7)}, ${Math.floor(tc[1] * brightness * 0.5)}, ${Math.floor(tc[2] * brightness * 0.3)}, ${0.7 - i * 0.1})`);
+                } else {
+                    gradient.addColorStop(0, `rgba(${Math.floor(180 * brightness)}, ${Math.floor(140 * brightness)}, ${Math.floor(100 * brightness)}, ${0.9 - i * 0.1})`);
+                    gradient.addColorStop(0.6, `rgba(${Math.floor(140 * brightness)}, ${Math.floor(100 * brightness)}, ${Math.floor(70 * brightness)}, ${0.7 - i * 0.1})`);
+                }
                 gradient.addColorStop(1, `rgba(100, 70, 50, 0)`);
-                
+
                 antCtx.fillStyle = gradient;
                 antCtx.beginPath();
-                antCtx.arc(colony.x, colony.y - layerOffset, layerRadius, 0, Math.PI * 2);
+                antCtx.arc(col.x, col.y - layerOffset, layerRadius, 0, Math.PI * 2);
                 antCtx.fill();
             }
-            
-            // Add some dirt texture/granules on the mound (use stored positions)
-            for (let granule of colonyGranules) {
-                antCtx.fillStyle = granule.color;
+
+            // Add dirt texture/granules on the mound
+            for (let granule of col.granules) {
+                const gb = granule.brightness;
+                const tc = col.color.trail;
+                if (gameMode === 'multi') {
+                    antCtx.fillStyle = `rgba(${Math.floor(tc[0] * gb)}, ${Math.floor(tc[1] * gb * 0.7)}, ${Math.floor(tc[2] * gb * 0.5)}, 0.5)`;
+                } else {
+                    antCtx.fillStyle = `rgba(${100 + Math.floor(gb * 60)}, ${70 + Math.floor(gb * 40)}, ${40 + Math.floor(gb * 30)}, 0.5)`;
+                }
                 antCtx.beginPath();
-                antCtx.arc(colony.x + granule.x, colony.y + granule.y, granule.size, 0, Math.PI * 2);
+                antCtx.arc(col.x + granule.x, col.y + granule.y, granule.size, 0, Math.PI * 2);
                 antCtx.fill();
             }
-            
+
             // Dark entrance hole
             const holeGradient = antCtx.createRadialGradient(
-                colony.x, colony.y, 0,
-                colony.x, colony.y, colony.radius * 0.6
+                col.x, col.y, 0,
+                col.x, col.y, col.radius * 0.6
             );
             holeGradient.addColorStop(0, 'rgba(20, 15, 10, 1)');
             holeGradient.addColorStop(0.5, 'rgba(40, 30, 20, 0.95)');
             holeGradient.addColorStop(0.8, 'rgba(60, 45, 30, 0.8)');
             holeGradient.addColorStop(1, 'rgba(80, 60, 40, 0)');
-            
+
             antCtx.fillStyle = holeGradient;
             antCtx.beginPath();
-            antCtx.ellipse(colony.x, colony.y, colony.radius * 0.6, colony.radius * 0.45, 0, 0, Math.PI * 2);
+            antCtx.ellipse(col.x, col.y, col.radius * 0.6, col.radius * 0.45, 0, 0, Math.PI * 2);
             antCtx.fill();
-            
-            // Hole rim/edge highlight
-            antCtx.strokeStyle = 'rgba(120, 90, 60, 0.6)';
+
+            // Hole rim with colony color
+            if (gameMode === 'multi') {
+                antCtx.strokeStyle = col.color.main;
+            } else {
+                antCtx.strokeStyle = 'rgba(120, 90, 60, 0.6)';
+            }
             antCtx.lineWidth = 2;
             antCtx.beginPath();
-            antCtx.ellipse(colony.x, colony.y, colony.radius * 0.6, colony.radius * 0.45, 0, 0, Math.PI * 2);
+            antCtx.ellipse(col.x, col.y, col.radius * 0.6, col.radius * 0.45, 0, 0, Math.PI * 2);
             antCtx.stroke();
+        }
+
+        function drawAnts() {
+            antCtx.clearRect(0, 0, width, height);
+
+            // Draw all colonies
+            for (const col of colonies) {
+                drawColonyHill(col);
+            }
 
             // Draw food sources with polygon shapes
             for (let food of foods) {
@@ -1045,9 +1260,17 @@
         function updateStats() {
             document.getElementById('fps-counter').textContent = currentFps;
             document.getElementById('ant-count').textContent = ants.length;
-            document.getElementById('food-collected').textContent = colony.foodStored;
             document.getElementById('food-sources').textContent = foods.filter(f => f.amount > 0).length;
-            document.getElementById('colony-size').textContent = Math.floor(1 + colony.foodStored / 50);
+
+            if (gameMode === 'multi') {
+                // Show total food across all colonies
+                const totalFood = colonies.reduce((sum, c) => sum + c.foodStored, 0);
+                document.getElementById('food-collected').textContent = totalFood;
+                document.getElementById('colony-size').textContent = colonies.length + ' colonies';
+            } else {
+                document.getElementById('food-collected').textContent = colony.foodStored;
+                document.getElementById('colony-size').textContent = Math.floor(1 + colony.foodStored / 50);
+            }
         }
 
         function update() {
@@ -1068,17 +1291,35 @@
                     foods.pop();
                 }
 
-                // Adjust ant count
+                // Adjust ant count - distribute evenly across colonies
                 while (ants.length < targetAntCount) {
+                    // Find colony with fewest ants and add there
+                    const antCounts = colonies.map((_, idx) =>
+                        ants.filter(a => a.colonyId === idx).length
+                    );
+                    const minIdx = antCounts.indexOf(Math.min(...antCounts));
+                    const col = colonies[minIdx];
                     const angle = Math.random() * Math.PI * 2;
-                    const dist = Math.random() * colony.radius;
+                    const dist = Math.random() * col.radius;
                     ants.push(new Ant(
-                        colony.x + Math.cos(angle) * dist,
-                        colony.y + Math.sin(angle) * dist
+                        col.x + Math.cos(angle) * dist,
+                        col.y + Math.sin(angle) * dist,
+                        minIdx
                     ));
                 }
                 while (ants.length > targetAntCount) {
-                    ants.pop();
+                    // Find colony with most ants and remove from there
+                    const antCounts = colonies.map((_, idx) =>
+                        ants.filter(a => a.colonyId === idx).length
+                    );
+                    const maxIdx = antCounts.indexOf(Math.max(...antCounts));
+                    // Find and remove an ant from that colony
+                    const removeIdx = ants.findIndex(a => a.colonyId === maxIdx);
+                    if (removeIdx !== -1) {
+                        ants.splice(removeIdx, 1);
+                    } else {
+                        ants.pop(); // Fallback
+                    }
                 }
             }
 
@@ -1158,12 +1399,19 @@
         });
 
         document.getElementById('reset-btn').addEventListener('click', () => {
-            homePheromones.fill(0);
-            foodPheromones.fill(0);
+            // Clear pheromones for all colonies
+            for (const col of colonies) {
+                col.homePheromones.fill(0);
+                col.foodPheromones.fill(0);
+            }
             init();
         });
 
+        let gameStarted = false;
+
         window.addEventListener('resize', () => {
+            if (!gameStarted) return; // Don't resize before game starts
+
             // Detect if this is a browser zoom change (devicePixelRatio changed)
             const currentRatio = window.devicePixelRatio;
             if (currentRatio !== lastDevicePixelRatio) {
@@ -1175,11 +1423,58 @@
             resize(true);
         });
 
-        // Start
-        init();
+        // Menu handling
+        const menuScreen = document.getElementById('menu-screen');
+        const singleModeBtn = document.getElementById('single-mode-btn');
+        const multiModeBtn = document.getElementById('multi-mode-btn');
+        const colonySelector = document.getElementById('colony-selector');
+        const countBtns = document.querySelectorAll('.count-btn');
+        const startBtn = document.getElementById('start-btn');
+
+        singleModeBtn.addEventListener('click', () => {
+            gameMode = 'single';
+            singleModeBtn.classList.add('active');
+            multiModeBtn.classList.remove('active');
+            colonySelector.classList.add('hidden');
+        });
+
+        multiModeBtn.addEventListener('click', () => {
+            gameMode = 'multi';
+            multiModeBtn.classList.add('active');
+            singleModeBtn.classList.remove('active');
+            colonySelector.classList.remove('hidden');
+        });
+
+        countBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                countBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                colonyCount = parseInt(btn.dataset.count);
+            });
+        });
+
+        startBtn.addEventListener('click', startGame);
+
+        function startGame() {
+            // Hide menu
+            menuScreen.classList.add('hidden');
+
+            // Show game elements
+            document.getElementById('game-header').classList.remove('hidden');
+            document.getElementById('game-container').classList.remove('hidden');
+            document.getElementById('stats').classList.remove('hidden');
+            document.getElementById('legend').classList.remove('hidden');
+            document.getElementById('instructions').classList.remove('hidden');
+            document.getElementById('controls').classList.remove('hidden');
+
+            // Initialize and start
+            gameStarted = true;
+            init();
+            enableZoomNavigation();
+            gameLoop();
+        }
 
         // After init, lock in canvas dimensions to enable zoom navigation
-        // The wrapper now has fixed pixel size that won't shrink on zoom
         function enableZoomNavigation() {
             const wrapper = document.getElementById('canvas-wrapper');
             const container = document.getElementById('game-container');
@@ -1194,9 +1489,6 @@
             container.style.minWidth = width + 'px';
             container.style.minHeight = height + 'px';
         }
-        enableZoomNavigation();
-
-        gameLoop();
     </script>
 </body>
 </html>
