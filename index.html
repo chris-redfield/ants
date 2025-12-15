@@ -243,6 +243,7 @@
     </div>
 
     <div class="stats">
+        <div>FPS: <span id="fps-counter">0</span></div>
         <div>Ants: <span id="ant-count">0</span></div>
         <div>Food Collected: <span id="food-collected">0</span></div>
         <div>Food Sources: <span id="food-sources">0</span></div>
@@ -332,11 +333,17 @@
         const WANDER_STRENGTH = 0.3;
         const PHEROMONE_FOLLOW_STRENGTH = 0.8;
 
+        // FPS tracking
+        let frameCount = 0;
+        let lastFpsTime = performance.now();
+        let currentFps = 0;
+
         function resize() {
             const container = document.getElementById('game-container');
-            const maxWidth = Math.min(container.clientWidth - 40, 900);
-            const maxHeight = Math.min(container.clientHeight - 40, 700);
-            
+            // Use most of the available space - no artificial cap
+            const maxWidth = container.clientWidth - 40;
+            const maxHeight = container.clientHeight - 40;
+
             width = Math.floor(maxWidth / CELL_SIZE) * CELL_SIZE;
             height = Math.floor(maxHeight / CELL_SIZE) * CELL_SIZE;
             
@@ -351,6 +358,9 @@
             // Initialize pheromone grids
             homePheromones = new Float32Array(gridWidth * gridHeight);
             foodPheromones = new Float32Array(gridWidth * gridHeight);
+
+            // Reinitialize offscreen canvas for new grid size
+            initPheromoneOffscreen();
 
             // Set colony position
             colony.x = width / 2;
@@ -743,32 +753,65 @@
         }
 
         function updatePheromones() {
-            // Decay and diffuse pheromones
             const newHome = new Float32Array(gridWidth * gridHeight);
             const newFood = new Float32Array(gridWidth * gridHeight);
 
-            // Home pheromones decay slower to maintain trails back to colony
             const HOME_DECAY = 0.998;
             const FOOD_DECAY = 0.994;
+            const DIFFUSE_SELF = 1 - PHEROMONE_DIFFUSE;  // 0.9
+            const DIFFUSE_NEIGHBOR = PHEROMONE_DIFFUSE / 8;  // 0.0125
 
             for (let y = 0; y < gridHeight; y++) {
-                for (let x = 0; x < gridWidth; x++) {
-                    const idx = y * gridWidth + x;
-                    
-                    // Get neighbors for diffusion
-                    let homeSum = homePheromones[idx] * (1 - PHEROMONE_DIFFUSE);
-                    let foodSum = foodPheromones[idx] * (1 - PHEROMONE_DIFFUSE);
+                const rowOffset = y * gridWidth;
+                const rowAbove = (y > 0) ? (y - 1) * gridWidth : -1;
+                const rowBelow = (y < gridHeight - 1) ? (y + 1) * gridWidth : -1;
 
-                    for (let dy = -1; dy <= 1; dy++) {
-                        for (let dx = -1; dx <= 1; dx++) {
-                            if (dx === 0 && dy === 0) continue;
-                            const nx = x + dx;
-                            const ny = y + dy;
-                            if (nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
-                                const nidx = ny * gridWidth + nx;
-                                homeSum += homePheromones[nidx] * PHEROMONE_DIFFUSE / 8;
-                                foodSum += foodPheromones[nidx] * PHEROMONE_DIFFUSE / 8;
-                            }
+                for (let x = 0; x < gridWidth; x++) {
+                    const idx = rowOffset + x;
+
+                    // Self contribution
+                    let homeSum = homePheromones[idx] * DIFFUSE_SELF;
+                    let foodSum = foodPheromones[idx] * DIFFUSE_SELF;
+
+                    // Neighbor contributions (unrolled for performance)
+                    const hasLeft = x > 0;
+                    const hasRight = x < gridWidth - 1;
+
+                    // Row above
+                    if (rowAbove >= 0) {
+                        if (hasLeft) {
+                            homeSum += homePheromones[rowAbove + x - 1] * DIFFUSE_NEIGHBOR;
+                            foodSum += foodPheromones[rowAbove + x - 1] * DIFFUSE_NEIGHBOR;
+                        }
+                        homeSum += homePheromones[rowAbove + x] * DIFFUSE_NEIGHBOR;
+                        foodSum += foodPheromones[rowAbove + x] * DIFFUSE_NEIGHBOR;
+                        if (hasRight) {
+                            homeSum += homePheromones[rowAbove + x + 1] * DIFFUSE_NEIGHBOR;
+                            foodSum += foodPheromones[rowAbove + x + 1] * DIFFUSE_NEIGHBOR;
+                        }
+                    }
+
+                    // Same row (left and right)
+                    if (hasLeft) {
+                        homeSum += homePheromones[rowOffset + x - 1] * DIFFUSE_NEIGHBOR;
+                        foodSum += foodPheromones[rowOffset + x - 1] * DIFFUSE_NEIGHBOR;
+                    }
+                    if (hasRight) {
+                        homeSum += homePheromones[rowOffset + x + 1] * DIFFUSE_NEIGHBOR;
+                        foodSum += foodPheromones[rowOffset + x + 1] * DIFFUSE_NEIGHBOR;
+                    }
+
+                    // Row below
+                    if (rowBelow >= 0) {
+                        if (hasLeft) {
+                            homeSum += homePheromones[rowBelow + x - 1] * DIFFUSE_NEIGHBOR;
+                            foodSum += foodPheromones[rowBelow + x - 1] * DIFFUSE_NEIGHBOR;
+                        }
+                        homeSum += homePheromones[rowBelow + x] * DIFFUSE_NEIGHBOR;
+                        foodSum += foodPheromones[rowBelow + x] * DIFFUSE_NEIGHBOR;
+                        if (hasRight) {
+                            homeSum += homePheromones[rowBelow + x + 1] * DIFFUSE_NEIGHBOR;
+                            foodSum += foodPheromones[rowBelow + x + 1] * DIFFUSE_NEIGHBOR;
                         }
                     }
 
@@ -781,44 +824,63 @@
             foodPheromones = newFood;
         }
 
+        // Create offscreen canvas for pheromone rendering (at grid resolution)
+        let pheromoneOffscreen = null;
+        let pheromoneOffscreenCtx = null;
+        let pheromoneImageData = null;
+
+        function initPheromoneOffscreen() {
+            pheromoneOffscreen = document.createElement('canvas');
+            pheromoneOffscreen.width = gridWidth;
+            pheromoneOffscreen.height = gridHeight;
+            pheromoneOffscreenCtx = pheromoneOffscreen.getContext('2d');
+            pheromoneImageData = pheromoneOffscreenCtx.createImageData(gridWidth, gridHeight);
+        }
+
         function drawPheromones() {
             pheromoneCtx.clearRect(0, 0, width, height);
-            
+
             if (!showTrails) return;
 
-            const imageData = pheromoneCtx.createImageData(width, height);
-            const data = imageData.data;
+            // Ensure offscreen canvas exists
+            if (!pheromoneOffscreen || pheromoneOffscreen.width !== gridWidth) {
+                initPheromoneOffscreen();
+            }
 
+            const data = pheromoneImageData.data;
+
+            // Fill ImageData at grid resolution (1 pixel per cell)
             for (let gy = 0; gy < gridHeight; gy++) {
                 for (let gx = 0; gx < gridWidth; gx++) {
                     const idx = gy * gridWidth + gx;
+                    const pixelIdx = idx * 4;
                     const home = homePheromones[idx];
                     const food = foodPheromones[idx];
 
                     if (home > 1 || food > 1) {
-                        // Draw cell
-                        for (let py = 0; py < CELL_SIZE; py++) {
-                            for (let px = 0; px < CELL_SIZE; px++) {
-                                const pixelX = gx * CELL_SIZE + px;
-                                const pixelY = gy * CELL_SIZE + py;
-                                const pixelIdx = (pixelY * width + pixelX) * 4;
+                        const homeAlpha = Math.min(home / 100, 1) * 0.6;
+                        const foodAlpha = Math.min(food / 100, 1) * 0.6;
 
-                                // Home pheromone: blue
-                                // Food pheromone: orange/yellow (changed from green)
-                                const homeAlpha = Math.min(home / 100, 1) * 0.6;
-                                const foodAlpha = Math.min(food / 100, 1) * 0.6;
-
-                                data[pixelIdx] = Math.floor(77 * homeAlpha + 255 * foodAlpha);     // R
-                                data[pixelIdx + 1] = Math.floor(166 * homeAlpha + 180 * foodAlpha); // G
-                                data[pixelIdx + 2] = Math.floor(255 * homeAlpha + 50 * foodAlpha);  // B
-                                data[pixelIdx + 3] = Math.floor((homeAlpha + foodAlpha) * 180);     // A
-                            }
-                        }
+                        // Blend colors based on pheromone strengths
+                        data[pixelIdx] = Math.floor(77 * homeAlpha + 255 * foodAlpha);     // R
+                        data[pixelIdx + 1] = Math.floor(166 * homeAlpha + 180 * foodAlpha); // G
+                        data[pixelIdx + 2] = Math.floor(255 * homeAlpha + 50 * foodAlpha);  // B
+                        data[pixelIdx + 3] = Math.floor(Math.min((homeAlpha + foodAlpha) * 0.7, 0.8) * 255); // A
+                    } else {
+                        data[pixelIdx] = 0;
+                        data[pixelIdx + 1] = 0;
+                        data[pixelIdx + 2] = 0;
+                        data[pixelIdx + 3] = 0;
                     }
                 }
             }
 
-            pheromoneCtx.putImageData(imageData, 0, 0);
+            // Put ImageData to offscreen canvas
+            pheromoneOffscreenCtx.putImageData(pheromoneImageData, 0, 0);
+
+            // Scale up to full canvas size (no smoothing for pixelated look)
+            pheromoneCtx.imageSmoothingEnabled = false;
+            pheromoneCtx.drawImage(pheromoneOffscreen, 0, 0, width, height);
         }
 
         function drawAnts() {
@@ -938,6 +1000,7 @@
         }
 
         function updateStats() {
+            document.getElementById('fps-counter').textContent = currentFps;
             document.getElementById('ant-count').textContent = ants.length;
             document.getElementById('food-collected').textContent = colony.foodStored;
             document.getElementById('food-sources').textContent = foods.filter(f => f.amount > 0).length;
@@ -950,9 +1013,6 @@
                 for (let ant of ants) {
                     ant.update();
                 }
-
-                // Update pheromones
-                updatePheromones();
 
                 // Remove depleted food
                 foods = foods.filter(f => f.amount > 0);
@@ -978,6 +1038,9 @@
                     ants.pop();
                 }
             }
+
+            // Update pheromones ONCE per frame (not per simulation tick)
+            updatePheromones();
         }
 
         function render() {
@@ -987,6 +1050,15 @@
         }
 
         function gameLoop() {
+            // FPS calculation
+            frameCount++;
+            const now = performance.now();
+            if (now - lastFpsTime >= 1000) {
+                currentFps = frameCount;
+                frameCount = 0;
+                lastFpsTime = now;
+            }
+
             update();
             render();
             requestAnimationFrame(gameLoop);
